@@ -6,20 +6,31 @@
 ### Three core actions the user should be able to perform are
 1. add a pet
 2. a summary showing what should be done that day
-3. a scheduling service
+3. shedule a service
 
 ### Potential Edge Cases
 1. What if the owner has no time in that day?
 2. More than 5 pets, scheduling complexity
-3. 
 
 - Briefly describe your initial UML design.
+The initial design I kept it simple and follwed the reqs from the README closely. After the initial brainstorm with claude code
+there was some clarity issuses for me, just understanding what the main objects would look like and how they connect. And so after some refining I came to understand that there's 4 main objects to the design.
+
 - What classes did you include, and what responsibilities did you assign to each?
+The 4 main classes are:
+1. Owner
+1. Pet
+1. Task
+1. Scheduler
 
 **b. Design changes**
 
 - Did your design change during implementation?
+Yes it changed where at first there we're 6 main objects, the 4 mentioned before and plus 2: DailyPlan and Calendar. After 2/3 iterations it came back down to 4, eliminating the calendar entirely and aggregating DailyPlan and Scheduler.
+
 - If yes, describe at least one change and why you made it.
+So DailyPlan isn't independent of Scheduler. It's just the output of the Schedule so it was okay to fold its attributes in Schedle directly to produce a cleaner design. Also the preferences are a bit complex since there's so many scenarios to consider. 
+
 
 ---
 

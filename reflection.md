@@ -3,6 +3,15 @@
 ## 1. System Design
 
 **a. Initial design**
+### Three core actions the user should be able to perform are
+1. add a pet
+2. a summary showing what should be done that day
+3. a scheduling service
+
+### Potential Edge Cases
+1. What if the owner has no time in that day?
+2. More than 5 pets, scheduling complexity
+3. 
 
 - Briefly describe your initial UML design.
 - What classes did you include, and what responsibilities did you assign to each?
@@ -65,6 +74,7 @@
 **b. What you would improve**
 
 - If you had another iteration, what would you improve or redesign?
+*Answer*: I would add a calendar system to the app so that the user can have a general sense of what's happening during the week. 
 
 **c. Key takeaway**
 

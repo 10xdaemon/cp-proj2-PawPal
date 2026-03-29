@@ -63,7 +63,7 @@ class Task:
 
 
 @dataclass
-class Pet: #FIXME: Consider when other is selected the user gets the option to type in the species
+class Pet: 
     name: str
     species: str
     age: int
@@ -383,18 +383,35 @@ class Scheduler:
 
     def explain_reasoning(self) -> str: #TEST THIS
         """Build a human-readable explanation of scheduling decisions."""
+        total_time = sum(t.duration for t in self.scheduled_tasks)
+        remaining = self.owner.available_minutes - total_time
         lines = [
-            f"Scheduled {len(self.scheduled_tasks)} tasks for {self.pet.name} "
-            f"within {self.owner.available_minutes} available minutes."
+            f"Today's plan fits {len(self.scheduled_tasks)} task(s) for {self.pet.name} "
+            f"into {total_time} of {self.owner.available_minutes} available minutes "
+            f"({remaining} min remaining)."
         ]
         if self.owner.preferred_categories:
-            lines.append(f"Prioritized preferred categories: {', '.join(self.owner.preferred_categories)}.")
+            lines.append(
+                f"Tasks in preferred categories ({', '.join(self.owner.preferred_categories)}) "
+                f"were moved to the front of the queue."
+            )
         timed = [t for t in self.scheduled_tasks if t.time_of_day]
         if timed:
-            lines.append("Tasks with set times are ordered chronologically.")
+            lines.append(
+                f"{len(timed)} task(s) have a fixed start time and are listed in chronological order."
+            )
         if self.skipped_tasks:
-            skipped_names = ", ".join(t.display_name for t in self.skipped_tasks)
-            lines.append(f"Skipped due to time constraints: {skipped_names}.")
+            low = [t for t in self.skipped_tasks if t.priority == "low"]
+            other_skipped = [t for t in self.skipped_tasks if t.priority != "low"]
+            if low:
+                low_names = ", ".join(f"'{t.display_name}'" for t in low)
+                lines.append(
+                    f"Low-priority task(s) {low_names} were left out because they did not fit "
+                    f"within the remaining time budget — consider rescheduling or increasing your available time."
+                )
+            if other_skipped:
+                other_names = ", ".join(f"'{t.display_name}'" for t in other_skipped)
+                lines.append(f"Skipped due to time constraints: {other_names}.")
         return " ".join(lines)
 
     def get_summary(self) -> str:

@@ -3,16 +3,55 @@ import pandas as pd
 from datetime import date, time as dt_time
 from pawpal_system import Owner, Pet, Task, Scheduler
 
-
-
-st.set_page_config(page_title="PawPal+", page_icon="🐾", layout="centered")
+st.set_page_config(page_title="PawPal+ Demo", page_icon="🐾", layout="centered")
 st.title("🐾 PawPal+")
 
-# --- Session State Init ---
-if "owner" not in st.session_state:
-    st.session_state.owner = None
-if "scheduler" not in st.session_state:
-    st.session_state.scheduler = None
+# -------------------------
+# Demo Seed (runs once)
+# -------------------------
+# Builds a rich scenario with two pets:
+#   Biscuit (dog) — 4 scheduled, 1 conflict, 1 low-priority skipped
+#   Luna    (cat) — all tasks fit cleanly, no conflicts
+#
+# Schedule for Biscuit is pre-generated so every output section
+# (metrics, conflict warning, task table, skipped expander, reasoning)
+# is visible immediately on load.
+
+if "demo_seeded" not in st.session_state:
+    owner = Owner(
+        name="Alex",
+        available_minutes=75,
+        preferred_time="morning",
+        preferred_categories=["walk", "medication"],
+    )
+
+    # --- Biscuit ---
+    biscuit = Pet(name="Biscuit", species="dog", age=3, breed="Labrador")
+    # Morning Walk ends 08:30; Feeding starts 08:15 → intentional conflict
+    biscuit.add_task(Task(name="Morning Walk", category="walk",       duration=30, priority="high",   frequency="daily",  time_of_day="08:00"))
+    biscuit.add_task(Task(name="Feeding",      category="feeding",    duration=10, priority="high",   frequency="daily",  time_of_day="08:15"))
+    biscuit.add_task(Task(name="Medication",   category="medication", duration=5,  priority="high",   frequency="daily",  time_of_day="09:00"))
+    biscuit.add_task(Task(name="Evening Walk", category="walk",       duration=25, priority="medium", frequency="daily",  time_of_day="18:00"))
+    # Bath Time is low-priority and won't fit in the 5 min remaining after the above 4 tasks (70 min used of 75)
+    biscuit.add_task(Task(name="Bath Time",    category="grooming",   duration=45, priority="low",    frequency="daily",  time_of_day=""))
+
+    # --- Luna ---
+    luna = Pet(name="Luna", species="cat", age=2, breed="Tabby")
+    luna.add_task(Task(name="Morning Feeding",   category="feeding",    duration=10, priority="high",   frequency="daily",  time_of_day="07:30"))
+    luna.add_task(Task(name="Evening Feeding",   category="feeding",    duration=10, priority="high",   frequency="daily",  time_of_day="18:00"))
+    luna.add_task(Task(name="Afternoon Playtime",category="enrichment", duration=20, priority="medium", frequency="daily",  time_of_day="14:00"))
+    luna.add_task(Task(name="Brush Fur",         category="grooming",   duration=15, priority="low",    frequency="daily",  time_of_day=""))
+
+    owner.add_pet(biscuit)
+    owner.add_pet(luna)
+
+    # Pre-generate schedule for Biscuit
+    scheduler = Scheduler(owner=owner, pet=biscuit, date=date.today())
+    scheduler.generate_plan()
+
+    st.session_state.owner     = owner
+    st.session_state.scheduler = scheduler
+    st.session_state.demo_seeded = True
 
 # -------------------------
 # Owner Setup
@@ -21,13 +60,16 @@ st.subheader("Owner Info")
 
 col1, col2 = st.columns(2)
 with col1:
-    owner_name = st.text_input("Owner name", value="Jordan")
+    owner_name = st.text_input("Owner name", value="Alex")
 with col2:
-    available_minutes = st.number_input("Available time (min/day)", min_value=10, max_value=480, value=90)
+    available_minutes = st.number_input("Available time (min/day)", min_value=10, max_value=480, value=75)
 
-preferred_time = st.selectbox("Preferred time of day", ["any", "morning", "afternoon", "evening"])
-preferred_categories = st.multiselect("Preferred categories", ["walk", "feeding", "medication", "grooming", "enrichment", "other"])
-
+preferred_time = st.selectbox("Preferred time of day", ["any", "morning", "afternoon", "evening"], index=1)
+preferred_categories = st.multiselect(
+    "Preferred categories",
+    ["walk", "feeding", "medication", "grooming", "enrichment", "other"],
+    default=["walk", "medication"],
+)
 
 if st.button("Save Owner"):
     st.session_state.owner = Owner(
@@ -98,7 +140,7 @@ if st.session_state.owner and st.session_state.owner.get_pets():
         duration = st.number_input("Duration (min)", min_value=1, max_value=240, value=20)
         priority = st.selectbox("Priority", ["low", "medium", "high"], index=2)
     with col3:
-        frequency = st.selectbox("Frequency", ["daily", "weekly", "as needed"])
+        frequency = st.selectbox("Frequency", ["daily", "weekly", "as_needed"])
         flexible = st.checkbox("Flexible time (any)", value=True)
         if not flexible:
             task_time = st.time_input("Preferred time (HH:MM)", value=dt_time(8, 0))
@@ -117,7 +159,7 @@ if st.session_state.owner and st.session_state.owner.get_pets():
                     priority=priority,
                     name=custom_name,
                     frequency=frequency,
-                    time_of_day=time_of_day
+                    time_of_day=time_of_day,
                 )
                 selected_pet = next(p for p in st.session_state.owner.get_pets() if p.name == selected_pet_name)
                 selected_pet.add_task(task)
@@ -129,16 +171,19 @@ if st.session_state.owner and st.session_state.owner.get_pets():
         if pet.get_tasks():
             st.write(f"**{pet.name}'s tasks:**")
             tasks = pet.get_tasks()
-            df = pd.DataFrame([
-                {
-                    "Task": t.display_name,
-                    "Duration (min)": t.duration,
-                    "Priority": t.priority,
-                    "Frequency": t.frequency,
-                    "Time": t.time_of_day if t.time_of_day else "any"
-                }
-                for t in tasks
-            ], index=range(1, len(tasks) + 1))
+            df = pd.DataFrame(
+                [
+                    {
+                        "Task": t.display_name,
+                        "Duration (min)": t.duration,
+                        "Priority": t.priority,
+                        "Frequency": t.frequency,
+                        "Time": t.time_of_day if t.time_of_day else "any",
+                    }
+                    for t in tasks
+                ],
+                index=range(1, len(tasks) + 1),
+            )
             st.dataframe(df)
 
 st.divider()
@@ -154,7 +199,6 @@ if st.session_state.owner and st.session_state.owner.get_pets():
 
     if st.button("Generate Schedule"):
         selected_pet = next(p for p in st.session_state.owner.get_pets() if p.name == schedule_pet_name)
-
         if not selected_pet.get_tasks():
             st.warning(f"{schedule_pet_name} has no tasks. Add some above first.")
         else:

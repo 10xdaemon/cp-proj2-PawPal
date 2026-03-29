@@ -22,6 +22,22 @@ Your final app should:
 - Display the plan clearly (and ideally explain the reasoning)
 - Include tests for the most important scheduling behaviors
 
+## Features
+
+- **Greedy scheduling** — packs tasks into the owner's daily time budget using a first-fit algorithm ranked by urgency score (priority + frequency), preferred categories, and duration
+- **Urgency scoring** — ranks tasks numerically (high: 100, medium: 50, low: 10) with a frequency boost (daily +20, weekly +5) to determine scheduling order
+- **Preferred category promotion** — tasks in the owner's preferred categories are moved to the front of the scheduling queue at equal urgency
+- **Chronological sorting** — scheduled tasks are reordered by `HH:MM` start time after packing; flexible tasks (no fixed time) are placed last
+- **Same-pet conflict detection** — flags overlapping timed tasks within a single pet's schedule using the interval overlap condition `a_start < b_end and b_start < a_end`
+- **Cross-pet conflict detection** — detects time overlaps across multiple pets' schedules simultaneously
+- **Daily and weekly recurrence** — completing a task automatically queues the next occurrence (daily → +1 day, weekly → +7 days); `as_needed` tasks are completed only
+- **Task history** — completed task records are preserved alongside rescheduled instances for full audit trail
+- **Duplicate prevention** — blocks adding a task with the same name and due date to the same pet
+- **Cross-pet filtering** — query incomplete, completed, or all tasks across every pet in a single call
+- **Scheduling explanation** — generates a plain-language summary of every plan decision, including why low-priority tasks were left out and how many minutes remain
+
+---
+
 ## Getting started
 
 ### Setup
@@ -67,7 +83,6 @@ Two layers of conflict detection surface time overlaps as warning messages witho
 
 ## Testing PawPal+
 
-The following command was used to test the code.
 
 ```bash
 cd tests
@@ -100,4 +115,11 @@ Core scheduling logic:
 1. Recurrence
 1. Conflict detection 
 1. Filtering
-1. Sorting; were thoroughly covered with both happy-path and edge cases.
+1. Sorting <br> 
+
+**All were thoroughly covered with both happy path and edge cases.**
+
+## 📸 Demo
+
+<a href="./assets/demo1.png" target="_blank"><img src='./assets/demo1.png' title='PawPal App1' width='' alt='PawPal App1' class='center-block' /></a>.
+<a href="./assets/demo2.png" target="_blank"><img src='./assets/demo2.png' title='PawPal App2' width='' alt='PawPal App2' class='center-block' /></a>.

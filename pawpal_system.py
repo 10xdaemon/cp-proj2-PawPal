@@ -1,18 +1,25 @@
 from dataclasses import dataclass, field
 from datetime import date, timedelta
 
-#TODO: 1. exclude task name and just keep the rename the categories as tasks and if it's anohter task 
-#         choose "other" where they'll get the option to name the task.
 @dataclass
 class Task:
-    name: str
-    category: str        # walk / feeding / medication / grooming / enrichment
+    category: str        # walk / feeding / medication / grooming / enrichment / other
     duration: int        # minutes
     priority: str        # high / medium / low
+    name: str = ""       # custom label; only required when category is "other"
     frequency: str = "daily"        # daily / weekly / as_needed
     time_of_day: str = ""           # HH:MM (e.g. "08:30"), or "" for flexible/any time
     is_completed: bool = False
     due_date: date | None = None    # None = template (every qualifying day); set = specific instance
+
+    @property
+    def display_name(self) -> str: # TEST THIS
+        """Return the task's display name.
+
+        For standard categories the category itself is the name (e.g. 'walk').
+        For 'other' tasks the user-provided name field is used instead.
+        """
+        return self.name if self.name else self.category
 
     def mark_complete(self):
         """Mark this task as completed."""
@@ -26,7 +33,7 @@ class Task:
         """Return True if this task has high priority."""
         return self.priority == "high"
 
-    def reschedule(self, from_date: date) -> "Task | None":
+    def reschedule(self, from_date: date) -> "Task | None": #TEST THIS
         """Return a new Task instance scheduled for the next occurrence after from_date.
 
         Computes the next due date based on the task's frequency:
@@ -36,13 +43,6 @@ class Task:
 
         The new instance is a copy of this task with is_completed reset to False
         and due_date set to the computed next date. All other attributes are preserved.
-
-        Args:
-            from_date: The date the task was completed; next occurrence is relative to this.
-
-        Returns:
-            A new Task with due_date set to the next occurrence, or None if the
-            task frequency is as_needed.
         """
         if self.frequency == "daily":
             next_date = from_date + timedelta(days=1)
@@ -52,10 +52,10 @@ class Task:
             return None   # as_needed tasks are not rescheduled automatically
 
         return Task(
-            name=self.name,
             category=self.category,
             duration=self.duration,
             priority=self.priority,
+            name=self.name,
             frequency=self.frequency,
             time_of_day=self.time_of_day,
             due_date=next_date,
@@ -63,7 +63,7 @@ class Task:
 
 
 @dataclass
-class Pet:
+class Pet: #FIXME: Consider when other is selected the user gets the option to type in the species
     name: str
     species: str
     age: int
@@ -76,8 +76,8 @@ class Pet:
         Duplicate detection is based on name + due_date so that a rescheduled
         instance (different due_date) can coexist with its completed predecessor.
         """
-        if any(t.name == task.name and t.due_date == task.due_date for t in self.tasks):
-            raise ValueError(f"Task '{task.name}' for {task.due_date or 'no date'} already exists for {self.name}.")
+        if any(t.display_name == task.display_name and t.due_date == task.due_date for t in self.tasks):
+            raise ValueError(f"Task '{task.display_name}' for {task.due_date or 'no date'} already exists for {self.name}.")
         self.tasks.append(task)
 
     def complete_task(self, task_name: str, today: date):
@@ -100,7 +100,7 @@ class Pet:
             ValueError: If no incomplete task with the given name exists for this pet.
         """
         task = next(
-            (t for t in self.tasks if t.name == task_name and not t.is_completed),
+            (t for t in self.tasks if t.display_name == task_name and not t.is_completed),
             None
         )
         if task is None:
@@ -114,9 +114,9 @@ class Pet:
 
     def remove_task(self, task_name: str):
         """Remove a task from this pet's list by name."""
-        self.tasks = [t for t in self.tasks if t.name != task_name]
+        self.tasks = [t for t in self.tasks if t.display_name != task_name]
 
-    def get_tasks(self) -> list[Task]:
+    def get_tasks(self) -> list[Task]: #TEST THIS
         """Return all tasks assigned to this pet."""
         return self.tasks
 
@@ -127,7 +127,6 @@ class Owner:
     available_minutes: int
     preferred_time: str = "any"            # morning / afternoon / evening / any
     preferred_categories: list[str] = field(default_factory=list)
-    avoid_categories: list[str] = field(default_factory=list)
     pets: list[Pet] = field(default_factory=list)
 
     def add_pet(self, pet: Pet):
@@ -225,9 +224,9 @@ def detect_cross_pet_conflicts(schedulers: list["Scheduler"]) -> list[str]:
                 continue  # same-pet conflicts handled by Scheduler.detect_conflicts()
             if a_start < b_end and b_start < a_end:
                 warnings.append(
-                    f"  WARNING: '{a.name}' for {a_pet} "
+                    f"  WARNING: '{a.display_name}' for {a_pet} "
                     f"({a.time_of_day}, {a.duration} min) overlaps with "
-                    f"'{b.name}' for {b_pet} "
+                    f"'{b.display_name}' for {b_pet} "
                     f"({b.time_of_day}, {b.duration} min)."
                 )
 
@@ -291,8 +290,8 @@ class Scheduler:
             for b, (b_start, b_end) in timed[i + 1:]:
                 if a_start < b_end and b_start < a_end:
                     warnings.append(
-                        f"  WARNING: '{a.name}' ({a.time_of_day}, {a.duration} min) "
-                        f"overlaps with '{b.name}' ({b.time_of_day}, {b.duration} min) "
+                        f"  WARNING: '{a.display_name}' ({a.time_of_day}, {a.duration} min) "
+                        f"overlaps with '{b.display_name}' ({b.time_of_day}, {b.duration} min) "
                         f"for {self.pet.name}."
                     )
 
@@ -323,7 +322,6 @@ class Scheduler:
         """Return schedulable tasks for self.date.
 
         Excludes:
-        - avoided categories
         - completed tasks
         - as_needed tasks (require manual triggering)
         - weekly tasks not due this weekday
@@ -331,14 +329,13 @@ class Scheduler:
         """
         return [
             t for t in self.pet.get_tasks()
-            if t.category not in self.owner.avoid_categories
-            and not t.is_completed
+            if not t.is_completed
             and t.frequency != "as_needed"
             and not (t.frequency == "weekly" and self.date.weekday() != 0)
             and (t.due_date is None or t.due_date == self.date)
         ]
 
-    def generate_plan(self):
+    def generate_plan(self): # TEST THIS
         """Build the owner's daily care schedule for self.pet on self.date.
 
         Algorithm (three phases):
@@ -384,7 +381,7 @@ class Scheduler:
         self.detect_conflicts()
         self.reasoning = self.explain_reasoning()
 
-    def explain_reasoning(self) -> str:
+    def explain_reasoning(self) -> str: #TEST THIS
         """Build a human-readable explanation of scheduling decisions."""
         lines = [
             f"Scheduled {len(self.scheduled_tasks)} tasks for {self.pet.name} "
@@ -392,13 +389,11 @@ class Scheduler:
         ]
         if self.owner.preferred_categories:
             lines.append(f"Prioritized preferred categories: {', '.join(self.owner.preferred_categories)}.")
-        if self.owner.avoid_categories:
-            lines.append(f"Excluded avoided categories: {', '.join(self.owner.avoid_categories)}.")
         timed = [t for t in self.scheduled_tasks if t.time_of_day]
         if timed:
             lines.append("Tasks with set times are ordered chronologically.")
         if self.skipped_tasks:
-            skipped_names = ", ".join(t.name for t in self.skipped_tasks)
+            skipped_names = ", ".join(t.display_name for t in self.skipped_tasks)
             lines.append(f"Skipped due to time constraints: {skipped_names}.")
         return " ".join(lines)
 
@@ -414,11 +409,11 @@ class Scheduler:
         print("Scheduled Tasks:")
         for t in self.scheduled_tasks:
             time_str = t.time_of_day if t.time_of_day else "any time"
-            print(f"  [{t.priority.upper()}] {t.name} — {t.duration} min ({t.category}, {time_str})")
+            print(f"  [{t.priority.upper()}] {t.display_name} — {t.duration} min ({t.category}, {time_str})")
         if self.skipped_tasks:
             print("\nSkipped Tasks:")
             for t in self.skipped_tasks:
-                print(f"  {t.name} — {t.duration} min (not enough time)")
+                print(f"  {t.display_name} — {t.duration} min (not enough time)")
         if self.conflicts:
             print("\nConflicts Detected:")
             for w in self.conflicts:

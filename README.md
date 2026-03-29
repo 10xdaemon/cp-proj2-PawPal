@@ -64,3 +64,40 @@ The scheduler respects task frequency when building the daily plan. Weekly tasks
 Two layers of conflict detection surface time overlaps as warning messages without crashing the app:
 - **Same-pet** — `Scheduler.detect_conflicts()` checks whether any two scheduled tasks for the same pet overlap in time. Called automatically after every `generate_plan()`.
 - **Cross-pet** — `detect_cross_pet_conflicts(schedulers)` compares tasks across different pets to catch cases where the owner would be double-booked.
+
+## Testing PawPal+
+
+The following command was used to test the code.
+
+```bash
+cd tests
+python -m pytest
+```
+
+### What the tests cover
+
+- **Task basics** — marking a task complete flips `is_completed`; adding tasks increases the pet's task count
+- **`Task.display_name`** — falls back to category when name is empty; respects explicit names and `"other"` category
+- **`Task.reschedule`** — daily tasks reschedule +1 day, weekly +7 days, `as_needed` returns `None`; rescheduled tasks start incomplete and preserve all original attributes
+- **`Pet.get_tasks`** — returns an empty list by default and the correct tasks after adds
+- **`Pet.add_task` duplicate detection** — raises `ValueError` when the same category + due date is added twice; allows the same category on different dates
+- **`Pet.complete_task`** — marks the task done, auto-appends a rescheduled instance for daily/weekly tasks, skips rescheduling for `as_needed`, raises on unknown or already-completed tasks
+- **`Scheduler.generate_plan`** — respects time budget (fits tasks, skips overflows); schedules by priority (high before low); excludes avoided categories, completed tasks, and `as_needed` tasks; sorts output chronologically; promotes preferred categories
+- **`Scheduler.explain_reasoning`** — output includes the pet's name, scheduled count, skipped notice when tasks are dropped, and references to preferred/avoided categories
+- **`Scheduler.urgency_score`** — high > medium > low priority; daily > weekly frequency; spot-checks expected numeric values (120 for high/daily, 10 for low/as_needed)
+- **`Scheduler.sort_by_time`** — chronological ordering, flexible (no time) tasks placed last, input list not mutated
+- **Conflict detection (same-pet)** — no conflict for non-overlapping or back-to-back tasks; flags partial overlaps, same-start-time, fully contained tasks, 1-minute overlaps, and three-way overlaps; conflict messages name both tasks; `sched.conflicts` populated after `generate_plan()`
+- **Cross-pet conflict detection** — `detect_cross_pet_conflicts()` clears non-overlapping schedules, flags overlapping windows across pets, ignores flexible (untimed) tasks
+- **`Owner.filter_tasks`** — no filter returns all tasks; filters by pet name, completion status, or both combined; unknown pet name returns empty list
+- **`Owner.add_pet` duplicate guard** — raises `ValueError` on duplicate pet names; allows different names
+
+### Confidence Level
+
+★★★★★ — All **77 tests pass**. 
+Core scheduling logic:
+1. Priority ranking
+1. Time budgeting 
+1. Recurrence
+1. Conflict detection 
+1. Filtering
+1. Sorting; were thoroughly covered with both happy-path and edge cases.
